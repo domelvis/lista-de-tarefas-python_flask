@@ -1,0 +1,31 @@
+{
+    "sqltools.connections": [
+        {
+            "name": "northwind-postgres",
+            "driver": "PostgreSQL",
+            "server": "localhost",
+            "port": 5432,
+            "database": "northwind",
+            "username": "elvis",
+            "password": "8531",
+            "askForPassword": false,
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "connectionTimeout": 30,
+            "group": "devs"
+        },
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "northwind",
+            "group": "devs",
+            "database": "northwind",
+            "username": "elvis",
+            "connectionTimeout": 30,
+            "password": "8531"
+        }
+    ]
+}

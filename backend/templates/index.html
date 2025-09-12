@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Tarefas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 Lista de Tarefas Elvis </h1>
+        </header>
+        
+        <main>
+            <!-- MENSAGENS DE SUCESSO/ERRO -->
+            <section id="messages" class="messages-section">
+                <!-- Flask flash messages aqui -->
+            </section>
+            
+            <!-- FORMULÁRIO PARA ADICIONAR NOVA TAREFA -->
+            <section class="form-section">
+                <h2>➕ Adicionar Nova Tarefa</h2>
+                <form id="taskForm" action="/adicionar" method="POST">
+                    
+                    <!-- TÍTULO DA TAREFA (OBRIGATÓRIO) -->
+                    <div class="form-group">
+                        <label for="titulo">Título da Tarefa *</label>
+                        <input type="text" 
+                               id="titulo" 
+                               name="titulo" 
+                               required 
+                               placeholder="Ex: Fazer compras, Estudar Python..."
+                               maxlength="100">
+                    </div>
+                    
+                    <!-- DESCRIÇÃO (OPCIONAL) -->
+                    <div class="form-group">
+                        <label for="descricao">Descrição</label>
+                        <textarea id="descricao" 
+                                  name="descricao" 
+                                  placeholder="Descreva mais detalhes sobre a tarefa..."
+                                  maxlength="500"></textarea>
+                    </div>
+                    
+                    <!-- PRIORIDADE -->
+                    <div class="form-group">
+                        <label for="prioridade">Prioridade</label>
+                        <select id="prioridade" name="prioridade">
+                            <option value="baixa">🟢 Baixa</option>
+                            <option value="media" selected>🟡 Média</option>
+                            <option value="alta">🔴 Alta</option>
+                        </select>
+                    </div>
+                    
+                    <!-- STATUS -->
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="pendente" selected>⏳ Pendente</option>
+                            <option value="andamento">🔄 Em andamento</option>
+                            <option value="concluida">✅ Concluída</option>
+                        </select>
+                    </div>
+                    
+                    <!-- BOTÕES -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">💾 Salvar Tarefa</button>
+                        <button type="reset" class="btn btn-secondary">🔄 Limpar</button>
+                    </div>
+                </form>
+            </section>
+            
+            <!-- LISTA DE TAREFAS SALVAS -->
+            <section class="tasks-section">
+                <div class="tasks-header">
+                    <h2>📋 Minhas Tarefas</h2>
+                    <div class="tasks-filter">
+                        <label for="filtro">Filtrar por:</label>
+                        <select id="filtro">
+                            <option value="todas">Todas</option>
+                            <option value="pendente">Pendentes</option>
+                            <option value="andamento">Em andamento</option>
+                            <option value="concluida">Concluídas</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="taskContainer" class="task-container">
+                    <!-- Flask vai popular as tarefas aqui via template -->
+                    <!-- Exemplo de estrutura da tarefa: -->
+                    <article class="task-item" data-status="pendente" data-priority="media">
+                        <header class="task-header">
+                            <h3 class="task-title">Fazer compras</h3>
+                            <div class="task-actions">
+                                <button class="btn-edit" aria-label="Editar tarefa">✏️</button>
+                                <button class="btn-delete" aria-label="Excluir tarefa" onclick="deletarTarefa(1)">🗑️</button>
+                            </div>
+                        </header>
+                        
+                        <div class="task-meta">
+                            <span class="task-status status-pendente">⏳ Pendente</span>
+                            <span class="task-priority priority-media">🟡 Média</span>
+                            <time class="task-date" datetime="2025-09-10">Criado em: 10/09/2025</time>
+                        </div>
+                        
+                        <div class="task-description">
+                            <p>Comprar ingredientes para o jantar de domingo</p>
+                        </div>
+                    </article>
+                    
+                </div>
+                
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <p>📝 Nenhuma tarefa encontrada. Que tal adicionar uma nova?</p>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>© 2025 Lista de Tarefas - Organize sua vida!</p>
+        </footer>
+    </div>
+    
+    <script src="static/js/script.js"></script>
+</body>
+</html>
