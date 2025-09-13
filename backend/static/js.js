@@ -1,472 +1,461 @@
-/**
- * Sistema de Gerenciamento de Tarefas
- * JavaScript moderno com ES6+, tratamento de erros e UX aprimorada
- */
+// ========================================
+// SISTEMA DE TAREFAS - ELVIS
+// ========================================
 
-class TaskManager {
-    constructor() {
-        this.elements = this.initializeElements();
-        this.state = {
-            tasks: [],
-            loading: false,
-            currentFilter: 'todas'
-        };
-        this.init();
-    }
+console.log('📝 Sistema de Tarefas carregado!');
 
-    // Inicializar elementos DOM
-    initializeElements() {
-        return {
-            // Formulário
-            form: document.getElementById('taskForm'),
-            titulo: document.getElementById('titulo'),
-            descricao: document.getElementById('descricao'),
-            prioridade: document.getElementById('prioridade'),
-            status: document.getElementById('status'),
-            
-            // Containers
-            taskContainer: document.getElementById('taskContainer'),
-            messagesSection: document.getElementById('messages'),
-            emptyState: document.getElementById('emptyState'),
-            
-            // Filtros
-            filtro: document.getElementById('filtro')
-        };
-    }
-
-    // Inicializar aplicação
-    init() {
-        this.bindEvents();
-        this.loadTasks();
-        this.showWelcomeMessage();
-    }
-
-    // Vincular eventos
-    bindEvents() {
-        // Formulário
-        this.elements.form?.addEventListener('submit', (e) => this.handleSubmit(e));
-        
-        // Filtros
-        this.elements.filtro?.addEventListener('change', (e) => this.handleFilterChange(e));
-        
-        // Limpar formulário ao resetar
-        this.elements.form?.addEventListener('reset', () => {
-            setTimeout(() => this.resetForm(), 100);
-        });
-
-        // Auto-save draft (opcional)
-        this.elements.titulo?.addEventListener('input', this.debounce(() => this.saveDraft(), 1000));
-    }
-
-    // Submissão do formulário
-    async handleSubmit(e) {
-        e.preventDefault();
-        
-        if (this.state.loading) return;
-
-        const formData = this.getFormData();
-        
-        if (!this.validateForm(formData)) {
-            return;
-        }
-
-        await this.addTask(formData);
-    }
-
-    // Obter dados do formulário
-    getFormData() {
-        return {
-            titulo: this.elements.titulo?.value?.trim() || '',
-            descricao: this.elements.descricao?.value?.trim() || '',
-            prioridade: this.elements.prioridade?.value || 'media',
-            status: this.elements.status?.value || 'pendente'
-        };
-    }
-
-    // Validar formulário
-    validateForm(data) {
-        const errors = [];
-
-        if (!data.titulo) {
-            errors.push('O título é obrigatório');
-            this.elements.titulo?.focus();
-        }
-
-        if (data.titulo && data.titulo.length > 100) {
-            errors.push('O título deve ter no máximo 100 caracteres');
-        }
-
-        if (data.descricao && data.descricao.length > 500) {
-            errors.push('A descrição deve ter no máximo 500 caracteres');
-        }
-
-        if (errors.length > 0) {
-            this.showMessage(errors.join('<br>'), 'error');
-            return false;
-        }
-
-        return true;
-    }
-
-    // Adicionar nova tarefa
-    async addTask(taskData) {
-        this.setLoading(true);
-        
-        try {
-            const response = await fetch('/api/tarefas', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    ...taskData,
-                    usuario_id: 1, // Temporário - implementar autenticação depois
-                    categoria_id: 1 // Temporário - implementar categorias depois
-                })
-            });
-
-            const result = await this.handleResponse(response);
-            
-            if (result.success) {
-                this.showMessage('✅ Tarefa adicionada com sucesso!', 'success');
-                this.resetForm();
-                await this.loadTasks();
-                this.clearDraft();
-            } else {
-                throw new Error(result.message || 'Erro ao adicionar tarefa');
-            }
-
-        } catch (error) {
-            console.error('Erro ao adicionar tarefa:', error);
-            this.showMessage(`❌ Erro ao adicionar tarefa: ${error.message}`, 'error');
-        } finally {
-            this.setLoading(false);
-        }
-    }
-
-    // Carregar tarefas
-    async loadTasks() {
-        this.setLoading(true);
-        
-        try {
-            const response = await fetch('/api/tarefas', {
-                headers: { 'Accept': 'application/json' }
-            });
-            
-            const result = await this.handleResponse(response);
-            
-            if (result.success) {
-                this.state.tasks = result.data || [];
-                this.renderTasks();
-            } else {
-                throw new Error(result.message || 'Erro ao carregar tarefas');
-            }
-
-        } catch (error) {
-            console.error('Erro ao carregar tarefas:', error);
-            this.showMessage(`❌ Erro ao carregar tarefas: ${error.message}`, 'error');
-            this.showEmptyState('Erro ao carregar tarefas. Tente recarregar a página.');
-        } finally {
-            this.setLoading(false);
-        }
-    }
-
-    // Excluir tarefa
-    async deleteTask(id) {
-        if (!confirm('🗑️ Tem certeza que deseja excluir esta tarefa?\n\nEsta ação não pode ser desfeita.')) {
-            return;
-        }
-
-        this.setLoading(true);
-
-        try {
-            const response = await fetch(`/api/tarefas/${id}`, {
-                method: 'DELETE',
-                headers: { 'Accept': 'application/json' }
-            });
-
-            const result = await this.handleResponse(response);
-            
-            if (result.success) {
-                this.showMessage('🗑️ Tarefa excluída com sucesso!', 'success');
-                await this.loadTasks();
-            } else {
-                throw new Error(result.message || 'Erro ao excluir tarefa');
-            }
-
-        } catch (error) {
-            console.error('Erro ao excluir tarefa:', error);
-            this.showMessage(`❌ Erro ao excluir tarefa: ${error.message}`, 'error');
-        } finally {
-            this.setLoading(false);
-        }
-    }
-
-    // Renderizar tarefas
-    renderTasks() {
-        if (!this.elements.taskContainer) return;
-
-        const filteredTasks = this.filterTasks();
-        
-        if (filteredTasks.length === 0) {
-            this.showEmptyState();
-            return;
-        }
-
-        this.hideEmptyState();
-        
-        this.elements.taskContainer.innerHTML = filteredTasks
-            .map(task => this.createTaskHTML(task))
-            .join('');
-        
-        this.bindTaskEvents();
-    }
-
-    // Filtrar tarefas
-    filterTasks() {
-        if (this.state.currentFilter === 'todas') {
-            return this.state.tasks;
-        }
-        
-        return this.state.tasks.filter(task => 
-            task.status.toLowerCase() === this.state.currentFilter
-        );
-    }
-
-    // Criar HTML da tarefa
-    createTaskHTML(task) {
-        const createdDate = new Date(task.data_criacao || Date.now()).toLocaleDateString('pt-BR');
-        const priorityIcon = this.getPriorityIcon(task.prioridade);
-        const statusIcon = this.getStatusIcon(task.status);
-
-        return `
-            <article class="task-item" data-status="${task.status.toLowerCase()}" data-priority="${task.prioridade.toLowerCase()}" data-id="${task.id}">
-                <header class="task-header">
-                    <h3 class="task-title">${this.escapeHtml(task.titulo)}</h3>
-                    <div class="task-actions">
-                        <button class="btn-edit" aria-label="Editar tarefa" data-id="${task.id}">✏️</button>
-                        <button class="btn-delete" aria-label="Excluir tarefa" data-id="${task.id}">🗑️</button>
-                    </div>
-                </header>
-                
-                <div class="task-meta">
-                    <span class="task-status status-${task.status.toLowerCase()}">${statusIcon} ${this.capitalizeFirst(task.status)}</span>
-                    <span class="task-priority priority-${task.prioridade.toLowerCase()}">${priorityIcon} ${this.capitalizeFirst(task.prioridade)}</span>
-                    <time class="task-date" datetime="${task.data_criacao}">Criado em: ${createdDate}</time>
-                </div>
-                
-                ${task.descricao ? `
-                <div class="task-description">
-                    <p>${this.escapeHtml(task.descricao)}</p>
-                </div>
-                ` : ''}
-            </article>
-        `;
-    }
-
-    // Vincular eventos das tarefas
-    bindTaskEvents() {
-        // Botões de excluir
-        document.querySelectorAll('.btn-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const id = btn.getAttribute('data-id');
-                this.deleteTask(id);
-            });
-        });
-
-        // Botões de editar (futuro)
-        document.querySelectorAll('.btn-edit').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const id = btn.getAttribute('data-id');
-                this.editTask(id);
-            });
-        });
-    }
-
-    // Editar tarefa (placeholder para futuro)
-    editTask(id) {
-        this.showMessage('🚧 Funcionalidade de edição em desenvolvimento!', 'info');
-        // TODO: Implementar edição inline ou modal
-    }
-
-    // Manipular mudança de filtro
-    handleFilterChange(e) {
-        this.state.currentFilter = e.target.value;
-        this.renderTasks();
-    }
-
-    // Mostrar/ocultar estado vazio
-    showEmptyState(message = null) {
-        if (!this.elements.emptyState) return;
-        
-        const defaultMessage = this.state.currentFilter === 'todas' 
-            ? '📝 Nenhuma tarefa encontrada. Que tal adicionar uma nova?'
-            : `📝 Nenhuma tarefa ${this.state.currentFilter} encontrada.`;
-            
-        this.elements.emptyState.innerHTML = `<p>${message || defaultMessage}</p>`;
-        this.elements.emptyState.style.display = 'block';
-        this.elements.taskContainer.style.display = 'none';
-    }
-
-    hideEmptyState() {
-        if (this.elements.emptyState) {
-            this.elements.emptyState.style.display = 'none';
-        }
-        if (this.elements.taskContainer) {
-            this.elements.taskContainer.style.display = 'block';
-        }
-    }
-
-    // Mostrar mensagem
-    showMessage(text, type = 'info', duration = 5000) {
-        if (!this.elements.messagesSection) return;
-
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}`;
-        messageDiv.innerHTML = text;
-
-        this.elements.messagesSection.appendChild(messageDiv);
-        this.elements.messagesSection.classList.add('show');
-
-        setTimeout(() => {
-            messageDiv.remove();
-            if (this.elements.messagesSection.children.length === 0) {
-                this.elements.messagesSection.classList.remove('show');
-            }
-        }, duration);
-    }
-
-    // Resetar formulário
-    resetForm() {
-        if (this.elements.form) {
-            this.elements.form.reset();
-        }
-        
-        // Resetar valores padrão
-        if (this.elements.prioridade) this.elements.prioridade.value = 'media';
-        if (this.elements.status) this.elements.status.value = 'pendente';
-    }
-
-    // Controle de loading
-    setLoading(loading) {
-        this.state.loading = loading;
-        
-        const submitBtn = this.elements.form?.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = loading;
-            submitBtn.textContent = loading ? '⏳ Salvando...' : '💾 Salvar Tarefa';
-        }
-    }
-
-    // Manipular resposta da API
-    async handleResponse(response) {
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
-    }
-
-    // Utilitários
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    capitalizeFirst(str) {
-        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-    }
-
-    getPriorityIcon(priority) {
-        const icons = {
-            baixa: '🟢',
-            media: '🟡', 
-            alta: '🔴'
-        };
-        return icons[priority.toLowerCase()] || '🟡';
-    }
-
-    getStatusIcon(status) {
-        const icons = {
-            pendente: '⏳',
-            andamento: '🔄',
-            concluida: '✅'
-        };
-        return icons[status.toLowerCase()] || '⏳';
-    }
-
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Salvar rascunho (localStorage)
-    saveDraft() {
-        const draft = this.getFormData();
-        if (draft.titulo) {
-            localStorage.setItem('taskDraft', JSON.stringify(draft));
-        }
-    }
-
-    // Carregar rascunho
-    loadDraft() {
-        try {
-            const draft = localStorage.getItem('taskDraft');
-            if (draft) {
-                const data = JSON.parse(draft);
-                if (this.elements.titulo) this.elements.titulo.value = data.titulo || '';
-                if (this.elements.descricao) this.elements.descricao.value = data.descricao || '';
-                if (this.elements.prioridade) this.elements.prioridade.value = data.prioridade || 'media';
-                if (this.elements.status) this.elements.status.value = data.status || 'pendente';
-            }
-        } catch (error) {
-            console.warn('Erro ao carregar rascunho:', error);
-        }
-    }
-
-    // Limpar rascunho
-    clearDraft() {
-        localStorage.removeItem('taskDraft');
-    }
-
-    // Mensagem de boas-vindas
-    showWelcomeMessage() {
-        setTimeout(() => {
-            this.showMessage('🎉 Bem-vindo ao seu gerenciador de tarefas!', 'success', 3000);
-        }, 500);
-    }
-}
-
-// Função global para compatibilidade (se necessário)
-function deletarTarefa(id) {
-    if (window.taskManager) {
-        window.taskManager.deleteTask(id);
-    }
-}
-
-// Inicializar aplicação quando DOM estiver pronto
-document.addEventListener('DOMContentLoaded', () => {
-    window.taskManager = new TaskManager();
+// ========================================
+// FILTRAR TAREFAS
+// ========================================
+function filtrarTarefas() {
+    const filtro = document.getElementById('filtro').value;
+    const tarefas = document.querySelectorAll('.task-item');
+    let contador = 0;
     
-    // Carregar rascunho se existir
-    window.taskManager.loadDraft();
+    console.log(`🔍 Filtrando por: ${filtro}`);
+    
+    tarefas.forEach(tarefa => {
+        if (filtro === 'todas' || tarefa.dataset.status === filtro) {
+            tarefa.style.display = 'block';
+            contador++;
+        } else {
+            tarefa.style.display = 'none';
+        }
+    });
+    
+    console.log(`📋 Mostrando ${contador} tarefas`);
+    
+    // Mostrar mensagem se não houver tarefas
+    mostrarMensagemVazia(contador);
+}
+
+// ========================================
+// MOSTRAR MENSAGEM QUANDO VAZIO
+// ========================================
+function mostrarMensagemVazia(contador) {
+    const container = document.getElementById('taskContainer');
+    let mensagemVazia = document.getElementById('mensagem-filtro-vazio');
+    
+    if (contador === 0 && !mensagemVazia) {
+        const filtro = document.getElementById('filtro').value;
+        const mensagens = {
+            'pendente': 'Nenhuma tarefa pendente! 🎉',
+            'andamento': 'Nenhuma tarefa em andamento.',
+            'concluida': 'Nenhuma tarefa concluída ainda.'
+        };
+        
+        mensagemVazia = document.createElement('div');
+        mensagemVazia.id = 'mensagem-filtro-vazio';
+        mensagemVazia.className = 'empty-state';
+        mensagemVazia.innerHTML = `
+            <div class="empty-state-icon">🔍</div>
+            <h3>${mensagens[filtro] || 'Nenhuma tarefa encontrada'}</h3>
+            <p>Tente alterar o filtro ou criar uma nova tarefa.</p>
+        `;
+        
+        container.appendChild(mensagemVazia);
+    } else if (contador > 0 && mensagemVazia) {
+        mensagemVazia.remove();
+    }
+}
+
+// ========================================
+// EDITAR TAREFA - MODAL (Função principal)
+// ========================================
+function editarTarefa(id, titulo, descricao, prioridade, status) {
+    console.log(`✏️ Editando tarefa ID: ${id}`);
+    
+    // Preencher campos do modal
+    document.getElementById('edit-titulo').value = titulo;
+    document.getElementById('edit-descricao').value = descricao || '';
+    document.getElementById('edit-prioridade').value = prioridade;
+    document.getElementById('edit-status').value = status;
+    
+    // Configurar ação do formulário
+    document.getElementById('editForm').action = '/editar/' + id;
+    
+    // Mostrar modal
+    document.getElementById('editModal').style.display = 'block';
+    
+    // Focar no primeiro campo
+    setTimeout(() => {
+        document.getElementById('edit-titulo').focus();
+    }, 100);
+}
+
+// ========================================
+// FECHAR MODAL
+// ========================================
+function fecharModal() {
+    console.log('❌ Fechando modal de edição');
+    document.getElementById('editModal').style.display = 'none';
+}
+
+// ========================================
+// EVENTOS DO MODAL
+// ========================================
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('editModal');
+    
+    // Fechar modal clicando fora
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            fecharModal();
+        }
+    });
+    
+    // Fechar modal com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'block') {
+            fecharModal();
+        }
+    });
 });
 
-// Salvar rascunho antes de sair da página
-window.addEventListener('beforeunload', () => {
-    if (window.taskManager) {
-        window.taskManager.saveDraft();
+// ========================================
+// GERENCIAR ALERTAS
+// ========================================
+function gerenciarAlertas() {
+    const alertas = document.querySelectorAll('.alert');
+    
+    if (alertas.length > 0) {
+        console.log(`📢 ${alertas.length} alerta(s) encontrado(s)`);
+        
+        // Fechar automaticamente após 5 segundos
+        setTimeout(() => {
+            alertas.forEach(alerta => {
+                if (alerta.style.display !== 'none') {
+                    alerta.style.opacity = '0';
+                    setTimeout(() => {
+                        alerta.style.display = 'none';
+                    }, 300);
+                }
+            });
+        }, 5000);
+    }
+}
+
+// ========================================
+// MELHORAR FORMULÁRIO
+// ========================================
+function configurarFormulario() {
+    const form = document.querySelector('form[action="/adicionar"]');
+    const tituloInput = document.getElementById('titulo');
+    const descricaoInput = document.getElementById('descricao');
+    
+    if (form) {
+        // Resetar valores padrão após limpar
+        form.addEventListener('reset', function() {
+            setTimeout(() => {
+                document.getElementById('prioridade').value = 'media';
+                document.getElementById('status').value = 'pendente';
+                console.log('🔄 Formulário resetado');
+            }, 100);
+        });
+        
+        // Contador de caracteres para título
+        if (tituloInput) {
+            const maxTitulo = tituloInput.getAttribute('maxlength') || 100;
+            
+            tituloInput.addEventListener('input', function() {
+                const atual = this.value.length;
+                console.log(`📝 Título: ${atual}/${maxTitulo} caracteres`);
+                
+                // Mudar cor quando próximo do limite
+                if (atual > maxTitulo * 0.8) {
+                    this.style.borderColor = '#f59e0b';
+                } else {
+                    this.style.borderColor = '#e5e7eb';
+                }
+            });
+        }
+        
+        // Contador de caracteres para descrição
+        if (descricaoInput) {
+            const maxDescricao = descricaoInput.getAttribute('maxlength') || 500;
+            
+            // Criar elemento contador
+            const contador = document.createElement('small');
+            contador.style.color = '#6b7280';
+            contador.style.fontSize = '12px';
+            contador.style.marginTop = '5px';
+            contador.style.display = 'block';
+            
+            descricaoInput.parentNode.appendChild(contador);
+            
+            descricaoInput.addEventListener('input', function() {
+                const atual = this.value.length;
+                contador.textContent = `${atual}/${maxDescricao} caracteres`;
+                
+                // Mudar cor quando próximo do limite
+                if (atual > maxDescricao * 0.8) {
+                    this.style.borderColor = '#f59e0b';
+                    contador.style.color = '#f59e0b';
+                } else {
+                    this.style.borderColor = '#e5e7eb';
+                    contador.style.color = '#6b7280';
+                }
+            });
+            
+            // Mostrar contador inicial
+            contador.textContent = `0/${maxDescricao} caracteres`;
+        }
+        
+        // Validação do formulário
+        form.addEventListener('submit', function(e) {
+            const titulo = tituloInput.value.trim();
+            
+            if (!titulo) {
+                e.preventDefault();
+                alert('⚠️ O título da tarefa é obrigatório!');
+                tituloInput.focus();
+                return false;
+            }
+            
+            if (titulo.length < 3) {
+                e.preventDefault();
+                alert('⚠️ O título deve ter pelo menos 3 caracteres!');
+                tituloInput.focus();
+                return false;
+            }
+            
+            console.log('✅ Formulário válido, enviando...');
+        });
+    }
+}
+
+// ========================================
+// ANIMAÇÕES E MELHORIAS VISUAIS
+// ========================================
+function adicionarAnimacoes() {
+    // Animação ao carregar as tarefas
+    const tarefas = document.querySelectorAll('.task-item');
+    tarefas.forEach((tarefa, index) => {
+        tarefa.style.opacity = '0';
+        tarefa.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            tarefa.style.transition = 'all 0.5s ease';
+            tarefa.style.opacity = '1';
+            tarefa.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+    
+    // Animação nos botões
+    const botoes = document.querySelectorAll('.btn, .btn-icon');
+    botoes.forEach(botao => {
+        botao.addEventListener('mouseenter', function() {
+            this.style.transform = 'scale(1.05)';
+        });
+        
+        botao.addEventListener('mouseleave', function() {
+            this.style.transform = 'scale(1)';
+        });
+    });
+}
+
+// ========================================
+// ESTATÍSTICAS DINÂMICAS
+// ========================================
+function atualizarEstatisticas() {
+    const tarefas = document.querySelectorAll('.task-item');
+    const stats = {
+        total: tarefas.length,
+        pendente: 0,
+        andamento: 0,
+        concluida: 0
+    };
+    
+    tarefas.forEach(tarefa => {
+        const status = tarefa.dataset.status;
+        if (stats.hasOwnProperty(status)) {
+            stats[status]++;
+        }
+    });
+    
+    // Atualizar elementos de estatística se existirem
+    const statElements = {
+        total: document.querySelector('.stat-item:nth-child(1) .stat-number'),
+        pendente: document.querySelector('.stat-item:nth-child(2) .stat-number'),
+        andamento: document.querySelector('.stat-item:nth-child(3) .stat-number'),
+        concluida: document.querySelector('.stat-item:nth-child(4) .stat-number')
+    };
+    
+    Object.keys(statElements).forEach(key => {
+        if (statElements[key]) {
+            statElements[key].textContent = stats[key];
+        }
+    });
+    
+    console.log('📊 Estatísticas:', stats);
+}
+
+// ========================================
+// BUSCA RÁPIDA
+// ========================================
+function adicionarBuscaRapida() {
+    const header = document.querySelector('.tasks-header');
+    if (!header || document.getElementById('busca-rapida')) return;
+    
+    const buscaContainer = document.createElement('div');
+    buscaContainer.innerHTML = `
+        <input type="text" 
+               id="busca-rapida" 
+               placeholder="🔍 Buscar tarefas..." 
+               style="padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 6px; margin-left: 10px;">
+    `;
+    
+    header.appendChild(buscaContainer);
+    
+    const inputBusca = document.getElementById('busca-rapida');
+    inputBusca.addEventListener('input', function() {
+        const termo = this.value.toLowerCase();
+        const tarefas = document.querySelectorAll('.task-item');
+        
+        tarefas.forEach(tarefa => {
+            const titulo = tarefa.querySelector('.task-title').textContent.toLowerCase();
+            const descricao = tarefa.querySelector('.task-description p');
+            const textoDescricao = descricao ? descricao.textContent.toLowerCase() : '';
+            
+            if (titulo.includes(termo) || textoDescricao.includes(termo)) {
+                tarefa.style.display = 'block';
+            } else {
+                tarefa.style.display = 'none';
+            }
+        });
+        
+        console.log(`🔍 Buscando por: "${termo}"`);
+    });
+}
+
+// ========================================
+// CONFIRMAÇÕES MELHORADAS
+// ========================================
+function melhorarConfirmacoes() {
+    const botoesExcluir = document.querySelectorAll('.btn-delete');
+    
+    botoesExcluir.forEach(botao => {
+        botao.addEventListener('click', function(e) {
+            const titulo = this.closest('.task-item').querySelector('.task-title').textContent;
+            
+            const confirmacao = confirm(
+                `🗑️ EXCLUIR TAREFA\n\n` +
+                `Título: "${titulo}"\n\n` +
+                `Esta ação não pode ser desfeita.\n` +
+                `Deseja continuar?`
+            );
+            
+            if (!confirmacao) {
+                e.preventDefault();
+                console.log('❌ Exclusão cancelada pelo usuário');
+            } else {
+                console.log(`🗑️ Excluindo tarefa: "${titulo}"`);
+            }
+        });
+    });
+}
+
+// ========================================
+// SALVAR PREFERÊNCIAS NO SESSIONSTORAGE
+// ========================================
+function salvarPreferencias() {
+    const filtro = document.getElementById('filtro');
+    
+    // Carregar filtro salvo
+    const filtroSalvo = sessionStorage.getItem('filtro-tarefas');
+    if (filtroSalvo && filtro) {
+        filtro.value = filtroSalvo;
+        filtrarTarefas();
+    }
+    
+    // Salvar quando mudar
+    if (filtro) {
+        filtro.addEventListener('change', function() {
+            sessionStorage.setItem('filtro-tarefas', this.value);
+            console.log(`💾 Filtro salvo: ${this.value}`);
+        });
+    }
+}
+
+// ========================================
+// INICIALIZAÇÃO PRINCIPAL
+// ========================================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando sistema de tarefas...');
+    
+    try {
+        // Executar todas as funções de inicialização
+        gerenciarAlertas();
+        configurarFormulario();
+        atualizarEstatisticas();
+        adicionarAnimacoes();
+        adicionarBuscaRapida();
+        melhorarConfirmacoes();
+        salvarPreferencias();
+        
+        console.log('✅ Sistema inicializado com sucesso!');
+        
+        // Mostrar informações do sistema no console
+        console.log(`
+        📋 SISTEMA DE TAREFAS - ELVIS
+        =============================
+        ✅ Criar tarefas
+        ✅ Editar tarefas  
+        ✅ Excluir tarefas
+        ✅ Filtrar tarefas
+        ✅ Buscar tarefas
+        ✅ Estatísticas dinâmicas
+        ✅ Animações suaves
+        ✅ Design responsivo
+        
+        Desenvolvido com ❤️ por Elvis
+        `);
+        
+    } catch (error) {
+        console.error('❌ Erro na inicialização:', error);
     }
 });
+
+// ========================================
+// DETECTAR MUDANÇAS NO SISTEMA
+// ========================================
+window.addEventListener('beforeunload', function() {
+    console.log('👋 Saindo do sistema de tarefas...');
+});
+
+// ========================================
+// FUNÇÕES GLOBAIS EXPOSTAS
+// ========================================
+window.sistemaTA 
+
+// ========================================
+// MODO DEBUG
+// ========================================
+if (window.location.search.includes('debug=true')) {
+    console.log('🔧 MODO DEBUG ATIVADO');
+    
+    // Adicionar botão de debug
+    const debugBtn = document.createElement('button');
+    debugBtn.textContent = '🔧 Debug';
+    debugBtn.style.position = 'fixed';
+    debugBtn.style.bottom = '20px';
+    debugBtn.style.right = '20px';
+    debugBtn.style.zIndex = '9999';
+    debugBtn.style.padding = '10px';
+    debugBtn.style.background = '#ef4444';
+    debugBtn.style.color = 'white';
+    debugBtn.style.border = 'none';
+    debugBtn.style.borderRadius = '5px';
+    debugBtn.style.cursor = 'pointer';
+    
+    debugBtn.addEventListener('click', function() {
+        console.table({
+            'Tarefas totais': document.querySelectorAll('.task-item').length,
+            'Tarefas visíveis': document.querySelectorAll('.task-item[style*="block"], .task-item:not([style])').length,
+            'Filtro atual': document.getElementById('filtro').value,
+            'Modal aberto': document.getElementById('editModal').style.display === 'block'
+        });
+    });
+    
+    document.body.appendChild(debugBtn);
+}

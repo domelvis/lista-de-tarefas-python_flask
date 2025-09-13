@@ -3,50 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lista de Tarefas</title>
+    <title>📝 Elvis - Lista de Tarefas</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📝 Elvis_Lista de Tarefas  </h1>
+            <h1>📝 Elvis - Lista de Tarefas</h1>
+            <p>Organize sua vida de forma inteligente e produtiva</p>
         </header>
         
-        <main>
-            <!-- MENSAGENS DE SUCESSO/ERRO -->
-            <section id="messages" class="messages-section">
-                <!-- Flask flash messages aqui -->
-            </section>
-            
-            <!-- FORMULÁRIO PARA ADICIONAR NOVA TAREFA -->
+        <!-- MENSAGENS FLASK -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        <span>{{ '✅' if category == 'success' else '❌' }}</span>
+                        {{ message }}
+                        <button type="button" class="close-alert" onclick="this.parentElement.style.display='none'">&times;</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="main-content">
+            <!-- FORMULÁRIO DE CRIAÇÃO -->
             <section class="form-section">
-                <h2>➕ Adicionar Nova Tarefa</h2>
-                <form id="taskForm" action="/adicionar" method="POST">
-                    
-                    <!-- TÍTULO DA TAREFA (OBRIGATÓRIO) -->
+                <h2>➕ Criar Nova Tarefa</h2>
+                <form action="/adicionar" method="POST">
                     <div class="form-group">
-                        <label for="titulo">Título da Tarefa *</label>
+                        <label for="titulo">📝 Título da Tarefa *</label>
                         <input type="text" 
                                id="titulo" 
                                name="titulo" 
                                required 
-                               placeholder="Ex: Fazer compras, Estudar Python..."
+                               placeholder="Ex: Estudar Python, Fazer compras..."
                                maxlength="100">
                     </div>
                     
-                    <!-- DESCRIÇÃO (OPCIONAL) -->
                     <div class="form-group">
-                        <label for="descricao">Descrição</label>
+                        <label for="descricao">📄 Descrição</label>
                         <textarea id="descricao" 
                                   name="descricao" 
-                                  placeholder="Descreva mais detalhes sobre a tarefa..."
+                                  placeholder="Descreva os detalhes da tarefa..."
                                   maxlength="500"></textarea>
                     </div>
                     
-                    <!-- PRIORIDADE -->
                     <div class="form-group">
-                        <label for="prioridade">Prioridade</label>
+                        <label for="prioridade">⚡ Prioridade</label>
                         <select id="prioridade" name="prioridade">
                             <option value="baixa">🟢 Baixa</option>
                             <option value="media" selected>🟡 Média</option>
@@ -54,75 +58,165 @@
                         </select>
                     </div>
                     
-                    <!-- STATUS -->
                     <div class="form-group">
-                        <label for="status">Status</label>
+                        <label for="status">📊 Status</label>
                         <select id="status" name="status">
                             <option value="pendente" selected>⏳ Pendente</option>
-                            <option value="andamento">🔄 Em andamento</option>
+                            <option value="andamento">🔄 Em Andamento</option>
                             <option value="concluida">✅ Concluída</option>
                         </select>
                     </div>
                     
-                    <!-- BOTÕES -->
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">💾 Salvar Tarefa</button>
-                        <button type="reset" class="btn btn-secondary">🔄 Limpar</button>
+                        <button type="submit" class="btn btn-primary">
+                            💾 Salvar Tarefa
+                        </button>
+                        <button type="reset" class="btn btn-secondary">
+                            🔄 Limpar
+                        </button>
                     </div>
                 </form>
             </section>
             
-            <!-- LISTA DE TAREFAS SALVAS -->
+            <!-- LISTA DE TAREFAS -->
             <section class="tasks-section">
                 <div class="tasks-header">
                     <h2>📋 Minhas Tarefas</h2>
                     <div class="tasks-filter">
-                        <label for="filtro">Filtrar por:</label>
-                        <select id="filtro">
-                            <option value="todas">Todas</option>
-                            <option value="pendente">Pendentes</option>
-                            <option value="andamento">Em andamento</option>
-                            <option value="concluida">Concluídas</option>
+                        <select id="filtro" onchange="filtrarTarefas()">
+                            <option value="todas">🔍 Todas</option>
+                            <option value="pendente">⏳ Pendentes</option>
+                            <option value="andamento">🔄 Em Andamento</option>
+                            <option value="concluida">✅ Concluídas</option>
                         </select>
                     </div>
                 </div>
                 
-                <div id="taskContainer" class="task-container">
-                    <!-- Flask vai popular as tarefas aqui via template -->
-                    <!-- Exemplo de estrutura da tarefa: -->
-                    <article class="task-item" data-status="pendente" data-priority="media">
-                        <header class="task-header">
-                            <h3 class="task-title">Fazer compras</h3>
-                            <div class="task-actions">
-                                <button class="btn-edit" aria-label="Editar tarefa">✏️</button>
-                                <button class="btn-delete" aria-label="Excluir tarefa" onclick="deletarTarefa(1)">🗑️</button>
-                            </div>
-                        </header>
-                        
-                        <div class="task-meta">
-                            <span class="task-status status-pendente">⏳ Pendente</span>
-                            <span class="task-priority priority-media">🟡 Média</span>
-                            <time class="task-date" datetime="2025-09-10">Criado em: 10/09/2025</time>
-                        </div>
-                        
-                        <div class="task-description">
-                            <p>Comprar ingredientes para o jantar de domingo</p>
-                        </div>
-                    </article>
-                    
+                <!-- ESTATÍSTICAS -->
+                {% if tarefas %}
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-number">{{ tarefas|length }}</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ tarefas|selectattr("status", "equalto", "pendente")|list|length }}</span>
+                        <span class="stat-label">Pendentes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ tarefas|selectattr("status", "equalto", "andamento")|list|length }}</span>
+                        <span class="stat-label">Em Andamento</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ tarefas|selectattr("status", "equalto", "concluida")|list|length }}</span>
+                        <span class="stat-label">Concluídas</span>
+                    </div>
                 </div>
+                {% endif %}
                 
-                <div id="emptyState" class="empty-state" style="display: none;">
-                    <p>📝 Nenhuma tarefa encontrada. Que tal adicionar uma nova?</p>
+                <!-- CONTAINER DAS TAREFAS -->
+                <div id="taskContainer">
+                    {% if tarefas %}
+                        {% for tarefa in tarefas|reverse %}
+                        <article class="task-item" data-status="{{ tarefa.status }}" data-priority="{{ tarefa.prioridade }}">
+                            <header class="task-header">
+                                <h3 class="task-title">{{ tarefa.titulo }}</h3>
+                                <div class="task-actions">
+                                    <button class="btn-icon btn-edit" 
+                                            onclick="editarTarefa({{ tarefa.tarefa_id }}, '{{ tarefa.titulo }}', '{{ tarefa.descricao or '' }}', '{{ tarefa.prioridade }}', '{{ tarefa.status }}')"
+                                            title="Editar tarefa">
+                                        ✏️
+                                    </button>
+                                    <a href="/excluir/{{ tarefa.tarefa_id }}" 
+                                       class="btn-icon btn-delete" 
+                                       onclick="return confirm('🗑️ Tem certeza que deseja excluir a tarefa:\\n\\n{{ tarefa.titulo|replace("'", "\\'") }}?')"
+                                       title="Excluir tarefa">
+                                        🗑️
+                                    </a>
+                                </div>
+                            </header>
+                            
+                            <div class="task-meta">
+                                <span class="task-status status-{{ tarefa.status }}">
+                                    {% if tarefa.status == 'pendente' %}⏳ Pendente
+                                    {% elif tarefa.status == 'andamento' %}🔄 Em Andamento
+                                    {% else %}✅ Concluída
+                                    {% endif %}
+                                </span>
+                                <span class="task-priority priority-{{ tarefa.prioridade }}">
+                                    {% if tarefa.prioridade == 'baixa' %}🟢 Baixa
+                                    {% elif tarefa.prioridade == 'media' %}🟡 Média
+                                    {% else %}🔴 Alta
+                                    {% endif %}
+                                </span>
+                                <time class="task-date">
+                                    📅 {{ tarefa.data_criacao.strftime('%d/%m/%Y às %H:%M') if tarefa.data_criacao }}
+                                </time>
+                            </div>
+                            
+                            {% if tarefa.descricao %}
+                            <div class="task-description">
+                                <p>{{ tarefa.descricao }}</p>
+                            </div>
+                            {% endif %}
+                        </article>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📝</div>
+                            <h3>Nenhuma tarefa criada ainda</h3>
+                            <p>Que tal criar sua primeira tarefa?</p>
+                        </div>
+                    {% endif %}
                 </div>
             </section>
-        </main>
-        
-        <footer>
-            <p>© 2025 Lista de Tarefas - Organize sua vida!</p>
-        </footer>
+        </div>
     </div>
     
-    <script src="static/js/script.js"></script>
+    <!-- MODAL DE EDIÇÃO -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Editar Tarefa</h3>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <form id="editForm" method="POST">
+                <div class="form-group">
+                    <label for="edit-titulo">📝 Título da Tarefa *</label>
+                    <input type="text" id="edit-titulo" name="titulo" required maxlength="100">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-descricao">📄 Descrição</label>
+                    <textarea id="edit-descricao" name="descricao" maxlength="500"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-prioridade">⚡ Prioridade</label>
+                    <select id="edit-prioridade" name="prioridade">
+                        <option value="baixa">🟢 Baixa</option>
+                        <option value="media">🟡 Média</option>
+                        <option value="alta">🔴 Alta</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit-status">📊 Status</label>
+                    <select id="edit-status" name="status">
+                        <option value="pendente">⏳ Pendente</option>
+                        <option value="andamento">🔄 Em Andamento</option>
+                        <option value="concluida">✅ Concluída</option>
+                    </select>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">💾 Salvar Alterações</button>
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">❌ Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js-js') }}"></script>
 </body>
 </html>

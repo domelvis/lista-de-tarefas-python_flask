@@ -1,4 +1,4 @@
-# app.py - Versão modernizada com API REST e melhorias
+# app.py - Sistema Completo de Lista de Tarefas com CRUD
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import os
@@ -28,7 +28,6 @@ db.init_app(app)
 def criar_dados_iniciais():
     """Criar usuário e categoria padrão se não existirem"""
     try:
-        # Verificar se já existe usuário padrão
         if Usuario.query.count() == 0:
             usuario_padrao = Usuario(
                 nome="Usuário Padrão", 
@@ -37,7 +36,6 @@ def criar_dados_iniciais():
             db.session.add(usuario_padrao)
             print("✅ Usuário padrão criado")
         
-        # Verificar se já existe categoria padrão
         if Categoria.query.count() == 0:
             categoria_padrao = Categoria(nome="Geral")
             db.session.add(categoria_padrao)
@@ -55,7 +53,7 @@ with app.app_context():
     criar_dados_iniciais()
 
 # ========================================
-# FUNÇÃO UTILITÁRIA PARA PADRONIZAR RESPOSTAS JSON
+# FUNÇÕES UTILITÁRIAS
 # ========================================
 def create_response(success=True, message="", data=None):
     """Criar resposta JSON padronizada"""
@@ -79,8 +77,28 @@ def tarefa_to_dict(tarefa):
         "categoria_id": tarefa.categoria_id
     }
 
+def validar_dados_tarefa(titulo, prioridade, status):
+    """Validar dados da tarefa"""
+    erros = []
+    
+    if not titulo or len(titulo.strip()) < 3:
+        erros.append("Título deve ter pelo menos 3 caracteres")
+    
+    if len(titulo) > 100:
+        erros.append("Título deve ter no máximo 100 caracteres")
+    
+    prioridades_validas = ["baixa", "media", "alta"]
+    if prioridade not in prioridades_validas:
+        erros.append(f"Prioridade deve ser: {', '.join(prioridades_validas)}")
+    
+    status_validos = ["pendente", "andamento", "concluida"]
+    if status not in status_validos:
+        erros.append(f"Status deve ser: {', '.join(status_validos)}")
+    
+    return erros
+
 # ========================================
-# ROTAS TRADICIONAIS (HTML)
+# ROTAS PRINCIPAIS (HTML)
 # ========================================
 @app.route("/")
 def home():
@@ -88,7 +106,7 @@ def home():
     print("🏠 Usuário acessou a página inicial")
     
     try:
-        todas_as_tarefas = Tarefa.query.all()
+        todas_as_tarefas = Tarefa.query.order_by(Tarefa.data_criacao.desc()).all()
         print(f"📋 Encontrei {len(todas_as_tarefas)} tarefas no banco")
         
         return render_template("index.html", tarefas=todas_as_tarefas)
@@ -99,20 +117,22 @@ def home():
         return render_template("index.html", tarefas=[])
 
 @app.route("/adicionar", methods=["POST"])
-def adicionar_tradicional():
-    """Rota tradicional para compatibilidade com forms HTML"""
-    print("💾 Usuário enviou tarefa via formulário HTML tradicional")
+def adicionar_tarefa():
+    """Adicionar nova tarefa"""
+    print("💾 Usuário enviou nova tarefa")
     
     try:
         # Receber dados do formulário
         titulo = request.form.get("titulo", "").strip()
         descricao = request.form.get("descricao", "").strip()
-        prioridade = request.form.get("prioridade", "media")
-        status = request.form.get("status", "pendente")
+        prioridade = request.form.get("prioridade", "media").lower()
+        status = request.form.get("status", "pendente").lower()
         
-        # Validar
-        if not titulo:
-            flash("Título é obrigatório!", "error")
+        # Validar dados
+        erros = validar_dados_tarefa(titulo, prioridade, status)
+        if erros:
+            for erro in erros:
+                flash(erro, "error")
             return redirect(url_for("home"))
         
         # Buscar dados padrão
@@ -126,30 +146,80 @@ def adicionar_tradicional():
         # Criar tarefa
         nova_tarefa = Tarefa(
             titulo=titulo,
-            descricao=descricao,
+            descricao=descricao if len(descricao) <= 500 else descricao[:500],
             prioridade=prioridade,
             status=status,
             usuario_id=primeiro_usuario.id_usuario,
             categoria_id=primeira_categoria.id_categoria,
-            data_criacao=datetime.now()
+            data_criacao=datetime.now(),
+            data_atualizacao=datetime.now()
         )
         
         db.session.add(nova_tarefa)
         db.session.commit()
         
-        flash(f"Tarefa '{titulo}' adicionada com sucesso! 🎉", "success")
+        print(f"✅ Tarefa '{titulo}' criada com ID {nova_tarefa.tarefa_id}")
+        flash(f"Tarefa '{titulo}' adicionada com sucesso!", "success")
         return redirect(url_for("home"))
         
     except Exception as erro:
         db.session.rollback()
         print(f"❌ Erro ao salvar tarefa: {erro}")
-        flash(f"Erro ao salvar tarefa: {erro}", "error")
+        flash(f"Erro ao salvar tarefa: {str(erro)}", "error")
+        return redirect(url_for("home"))
+
+@app.route("/editar/<int:tarefa_id>", methods=["POST"])
+def editar_tarefa(tarefa_id):
+    """Editar tarefa existente"""
+    print(f"✏️ Editando tarefa ID: {tarefa_id}")
+    
+    try:
+        # Buscar a tarefa no banco
+        tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
+        
+        if not tarefa:
+            flash("Tarefa não encontrada!", "error")
+            return redirect(url_for("home"))
+        
+        # Receber dados do formulário
+        titulo = request.form.get("titulo", "").strip()
+        descricao = request.form.get("descricao", "").strip()
+        prioridade = request.form.get("prioridade", "media").lower()
+        status = request.form.get("status", "pendente").lower()
+        
+        # Validar dados
+        erros = validar_dados_tarefa(titulo, prioridade, status)
+        if erros:
+            for erro in erros:
+                flash(erro, "error")
+            return redirect(url_for("home"))
+        
+        # Atualizar os dados da tarefa
+        titulo_antigo = tarefa.titulo
+        tarefa.titulo = titulo
+        tarefa.descricao = descricao if len(descricao) <= 500 else descricao[:500]
+        tarefa.prioridade = prioridade
+        tarefa.status = status
+        tarefa.data_atualizacao = datetime.now()
+        
+        # Salvar no banco
+        db.session.commit()
+        
+        print(f"✅ Tarefa '{titulo_antigo}' atualizada para '{titulo}'")
+        flash(f"Tarefa '{titulo}' foi atualizada com sucesso!", "success")
+        
+        return redirect(url_for("home"))
+        
+    except Exception as erro:
+        db.session.rollback()
+        print(f"❌ Erro ao editar tarefa: {erro}")
+        flash(f"Erro ao editar tarefa: {str(erro)}", "error")
         return redirect(url_for("home"))
 
 @app.route("/excluir/<int:tarefa_id>")
-def excluir_tradicional(tarefa_id):
-    """Rota tradicional para excluir tarefa"""
-    print(f"🗑️ Excluindo tarefa ID: {tarefa_id} (rota tradicional)")
+def excluir_tarefa(tarefa_id):
+    """Excluir tarefa"""
+    print(f"🗑️ Excluindo tarefa ID: {tarefa_id}")
     
     try:
         tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
@@ -162,21 +232,22 @@ def excluir_tradicional(tarefa_id):
         db.session.delete(tarefa)
         db.session.commit()
         
-        flash(f"Tarefa '{titulo}' foi excluída! 🗑️", "success")
+        print(f"✅ Tarefa '{titulo}' excluída")
+        flash(f"Tarefa '{titulo}' foi excluída!", "success")
         return redirect(url_for("home"))
         
     except Exception as erro:
         db.session.rollback()
         print(f"❌ Erro ao excluir: {erro}")
-        flash(f"Erro ao excluir tarefa: {erro}", "error")
+        flash(f"Erro ao excluir tarefa: {str(erro)}", "error")
         return redirect(url_for("home"))
 
 # ========================================
-# API REST MODERNA (JSON)
+# API REST (JSON)
 # ========================================
 @app.route("/api/tarefas", methods=["GET"])
 def api_listar_tarefas():
-    """API: Listar todas as tarefas (JSON)"""
+    """API: Listar todas as tarefas"""
     print("🔗 API: Buscando tarefas...")
     
     try:
@@ -199,11 +270,10 @@ def api_listar_tarefas():
 
 @app.route("/api/tarefas", methods=["POST"])
 def api_adicionar_tarefa():
-    """API: Adicionar nova tarefa (JSON)"""
+    """API: Adicionar nova tarefa"""
     print("💾 API: Adicionando nova tarefa...")
     
     try:
-        # Verificar Content-Type
         if not request.is_json:
             return create_response(
                 success=False,
@@ -212,39 +282,17 @@ def api_adicionar_tarefa():
         
         data = request.get_json()
         
-        # Validar dados obrigatórios
         titulo = data.get("titulo", "").strip()
-        if not titulo:
-            return create_response(
-                success=False,
-                message="Título é obrigatório"
-            ), 400
-        
-        if len(titulo) > 100:
-            return create_response(
-                success=False,
-                message="Título deve ter no máximo 100 caracteres"
-            ), 400
-        
-        # Dados opcionais com valores padrão
         descricao = data.get("descricao", "").strip()
         prioridade = data.get("prioridade", "media").lower()
         status = data.get("status", "pendente").lower()
         
-        # Validar valores permitidos
-        prioridades_validas = ["baixa", "media", "alta"]
-        status_validos = ["pendente", "andamento", "concluida"]
-        
-        if prioridade not in prioridades_validas:
+        # Validar dados
+        erros = validar_dados_tarefa(titulo, prioridade, status)
+        if erros:
             return create_response(
                 success=False,
-                message=f"Prioridade deve ser: {', '.join(prioridades_validas)}"
-            ), 400
-        
-        if status not in status_validos:
-            return create_response(
-                success=False,
-                message=f"Status deve ser: {', '.join(status_validos)}"
+                message="; ".join(erros)
             ), 400
         
         # Buscar usuário e categoria padrão
@@ -265,7 +313,8 @@ def api_adicionar_tarefa():
             status=status,
             usuario_id=primeiro_usuario.id_usuario,
             categoria_id=primeira_categoria.id_categoria,
-            data_criacao=datetime.now()
+            data_criacao=datetime.now(),
+            data_atualizacao=datetime.now()
         )
         
         db.session.add(nova_tarefa)
@@ -287,44 +336,9 @@ def api_adicionar_tarefa():
             message=f"Erro interno do servidor: {str(erro)}"
         ), 500
 
-@app.route("/api/tarefas/<int:tarefa_id>", methods=["DELETE"])
-def api_excluir_tarefa(tarefa_id):
-    """API: Excluir tarefa por ID (JSON)"""
-    print(f"🗑️ API: Excluindo tarefa ID {tarefa_id}...")
-    
-    try:
-        tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
-        
-        if not tarefa:
-            return create_response(
-                success=False,
-                message="Tarefa não encontrada"
-            ), 404
-        
-        titulo = tarefa.titulo
-        db.session.delete(tarefa)
-        db.session.commit()
-        
-        print(f"✅ API: Tarefa '{titulo}' excluída")
-        
-        return create_response(
-            success=True,
-            message=f"Tarefa '{titulo}' excluída com sucesso!"
-        )
-        
-    except Exception as erro:
-        db.session.rollback()
-        print(f"❌ API Erro ao excluir tarefa: {erro}")
-        return create_response(
-            success=False,
-            message=f"Erro ao excluir tarefa: {str(erro)}"
-        ), 500
-
 @app.route("/api/tarefas/<int:tarefa_id>", methods=["GET"])
 def api_obter_tarefa(tarefa_id):
     """API: Obter tarefa específica por ID"""
-    print(f"🔍 API: Buscando tarefa ID {tarefa_id}...")
-    
     try:
         tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
         
@@ -341,10 +355,91 @@ def api_obter_tarefa(tarefa_id):
         )
         
     except Exception as erro:
-        print(f"❌ API Erro ao buscar tarefa: {erro}")
         return create_response(
             success=False,
             message=f"Erro ao buscar tarefa: {str(erro)}"
+        ), 500
+
+@app.route("/api/tarefas/<int:tarefa_id>", methods=["PUT"])
+def api_editar_tarefa(tarefa_id):
+    """API: Editar tarefa"""
+    try:
+        if not request.is_json:
+            return create_response(
+                success=False,
+                message="Content-Type deve ser application/json"
+            ), 400
+        
+        tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
+        if not tarefa:
+            return create_response(
+                success=False,
+                message="Tarefa não encontrada"
+            ), 404
+        
+        data = request.get_json()
+        
+        titulo = data.get("titulo", tarefa.titulo).strip()
+        descricao = data.get("descricao", tarefa.descricao or "").strip()
+        prioridade = data.get("prioridade", tarefa.prioridade).lower()
+        status = data.get("status", tarefa.status).lower()
+        
+        # Validar dados
+        erros = validar_dados_tarefa(titulo, prioridade, status)
+        if erros:
+            return create_response(
+                success=False,
+                message="; ".join(erros)
+            ), 400
+        
+        # Atualizar tarefa
+        tarefa.titulo = titulo
+        tarefa.descricao = descricao if len(descricao) <= 500 else descricao[:500]
+        tarefa.prioridade = prioridade
+        tarefa.status = status
+        tarefa.data_atualizacao = datetime.now()
+        
+        db.session.commit()
+        
+        return create_response(
+            success=True,
+            message=f"Tarefa '{titulo}' atualizada com sucesso!",
+            data=tarefa_to_dict(tarefa)
+        )
+        
+    except Exception as erro:
+        db.session.rollback()
+        return create_response(
+            success=False,
+            message=f"Erro ao editar tarefa: {str(erro)}"
+        ), 500
+
+@app.route("/api/tarefas/<int:tarefa_id>", methods=["DELETE"])
+def api_excluir_tarefa(tarefa_id):
+    """API: Excluir tarefa"""
+    try:
+        tarefa = Tarefa.query.filter_by(tarefa_id=tarefa_id).first()
+        
+        if not tarefa:
+            return create_response(
+                success=False,
+                message="Tarefa não encontrada"
+            ), 404
+        
+        titulo = tarefa.titulo
+        db.session.delete(tarefa)
+        db.session.commit()
+        
+        return create_response(
+            success=True,
+            message=f"Tarefa '{titulo}' excluída com sucesso!"
+        )
+        
+    except Exception as erro:
+        db.session.rollback()
+        return create_response(
+            success=False,
+            message=f"Erro ao excluir tarefa: {str(erro)}"
         ), 500
 
 # ========================================
@@ -373,13 +468,14 @@ def debug():
         
         resultado += f"<h2>📝 Tarefas ({len(tarefas)})</h2><ul>"
         for t in tarefas:
-            resultado += f"<li>ID: {t.tarefa_id} - {t.titulo} ({t.status}) - {t.data_criacao}</li>"
+            resultado += f"<li>ID: {t.tarefa_id} - {t.titulo} ({t.status}) - {t.prioridade} - {t.data_criacao}</li>"
         resultado += "</ul>"
         
         resultado += "<br><hr>"
         resultado += "<h3>🔗 Links Úteis:</h3><ul>"
         resultado += '<li><a href="/">← Voltar para Home</a></li>'
         resultado += '<li><a href="/api/tarefas">API: Listar Tarefas (JSON)</a></li>'
+        resultado += '<li><a href="/api/status">API: Status do Sistema</a></li>'
         resultado += "</ul>"
         
         return resultado
@@ -395,6 +491,20 @@ def api_status():
         total_usuarios = Usuario.query.count()
         total_categorias = Categoria.query.count()
         
+        # Estatísticas por status
+        stats_status = {
+            'pendente': Tarefa.query.filter_by(status='pendente').count(),
+            'andamento': Tarefa.query.filter_by(status='andamento').count(),
+            'concluida': Tarefa.query.filter_by(status='concluida').count()
+        }
+        
+        # Estatísticas por prioridade
+        stats_prioridade = {
+            'baixa': Tarefa.query.filter_by(prioridade='baixa').count(),
+            'media': Tarefa.query.filter_by(prioridade='media').count(),
+            'alta': Tarefa.query.filter_by(prioridade='alta').count()
+        }
+        
         return create_response(
             success=True,
             message="Sistema funcionando normalmente",
@@ -404,6 +514,8 @@ def api_status():
                 "total_tarefas": total_tarefas,
                 "total_usuarios": total_usuarios,
                 "total_categorias": total_categorias,
+                "estatisticas_status": stats_status,
+                "estatisticas_prioridade": stats_prioridade,
                 "server_time": datetime.now().isoformat()
             }
         )
@@ -419,7 +531,7 @@ def api_status():
 @app.errorhandler(404)
 def page_not_found(e):
     """Página não encontrada"""
-    return render_template('404.html'), 404
+   
 
 @app.errorhandler(500)
 def internal_error(e):
