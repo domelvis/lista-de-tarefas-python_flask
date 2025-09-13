@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📝 Elvis - Lista de Tarefas</title>
+    <title>Lista de Tarefas</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icon.png') }}" type="image/png">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📝 Elvis - Lista de Tarefas</h1>
-            <p>Organize sua vida de forma inteligente e produtiva</p>
-        </header>
+   <header>
+    <h1>
+        <img src="{{ url_for('static', filename='icone2.png') }}" 
+             alt="Ícone" 
+             style="width:68px; height:68px; vertical-align:middle; margin-right:10px;">
+         Lista tarefas - Elvis
+    </h1>
+    <p>Organize sua vida de forma inteligente e produtiva</p>
+</header>
         
         <!-- MENSAGENS FLASK -->
         {% with messages = get_flashed_messages(with_categories=true) %}
