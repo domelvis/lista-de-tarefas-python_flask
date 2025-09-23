@@ -111,3 +111,12 @@ GitHub: 🔗 https://github.com/domelvis
 LinkedIn: 🔗 https://www.linkedin.com/in/elvis-marcelo-pereira-de-souza-1690bb259/
 
 Feito com ❤️ por Dom Elvis.
+💌 Contato Elvis Marcelo pereira de souza
+
+E-mail: 📧 elvishootsrockreggae@hotmail.com - djpetrelli239@gmail.com
+
+GitHub: 🔗 https://github.com/domelvis
+
+LinkedIn: 🔗 https://www.linkedin.com/in/elvis-marcelo-pereira-de-souza-1690bb259/
+
+Feito com ❤️ por Dom Elvis.
