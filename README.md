@@ -102,11 +102,12 @@ Push para a branch (git push origin feature/nova-tarefa)
 
 Abra um Pull Request ✨
 
-💌 Contato
+💌 Contato Elvis Marcelo pereira de souza
 
-Dom Elvis 📧: domelvis@gmail.com
+E-mail: 📧 elvishootsrockreggae@hotmail.com - djpetrelli239@gmail.com
 
-GitHub: https://github.com/domelvis
-Linkedin : https://www.linkedin.com/in/elvis-marcelo-pereira-de-souza
+GitHub: 🔗 https://github.com/domelvis
 
-Made with ❤️ by Dom Elvis
+LinkedIn: 🔗 https://www.linkedin.com/in/elvis-marcelo-pereira-de-souza-1690bb259/
+
+Feito com ❤️ por Dom Elvis.
